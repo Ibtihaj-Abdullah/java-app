@@ -1,140 +1,40 @@
 version: 2.1
 
-executors:
-  java-executor:
-    docker:
-      - image: eclipse-temurin:17-jdk  # Official Java 17 Image
+orbs:
+  aws-ecr: circleci/aws-ecr@6.15
+  aws-ecs: circleci/aws-ecs@2.2.0
 
 jobs:
-  build:
-    executor: java-executor
+  build-and-push:
+    docker:
+      - image: cimg/openjdk:11.0
     steps:
       - checkout
-      - run:
-          name: Install Required Packages (tar, gzip & Maven)
-          command: |
-            echo "Updating package lists..."
-            apt-get update
-            echo "Installing tar and gzip..."
-            apt-get install -y tar gzip
-            echo "Installing Maven..."
-            apt-get install -y maven
-            echo "Verifying installations..."
-            tar --version
-            gzip --version
-            mvn -version
       - run:
           name: Build with Maven
-          command: mvn clean package
-      - persist_to_workspace:
-          root: .
-          paths:
-            - target/demo-0.0.1-SNAPSHOT.jar
-
-  docker-push:
-    docker:
-      - image: public.ecr.aws/aws-cli/aws-cli:2.15.0  # Official AWS CLI image
-    environment:
-      AWS_DEFAULT_REGION: us-east-1
-    steps:
-      - checkout
-      - setup_remote_docker
-      - run:
-          name: Install Docker
-          command: |
-            yum update -y
-            yum install -y yum-utils
-            yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-            yum install -y docker-ce docker-ce-cli containerd.io
-            systemctl start docker
-            systemctl enable docker
-      - attach_workspace:
-          at: .
-      - run:
-          name: Configure AWS
-          command: |
-            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-      - run:
-          name: Build and Push Docker Image
-          command: |
-            # Get AWS account ID
-            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-            
-            # Login to ECR
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-            
-            # Build and tag the image
-            docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
-            
-            # Push the image
-            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
+          command: mvn clean package -DskipTests
+      - aws-ecr/build-and-push-image:
+          repo: hello-world-app
+          tag: ${CIRCLE_SHA1}
+          path: .
+          dockerfile: Dockerfile
 
   deploy:
     docker:
-      - image: public.ecr.aws/aws-cli/aws-cli:2.15.0  # Official AWS CLI image
-    environment:
-      AWS_DEFAULT_REGION: us-east-1
+      - image: cimg/aws-cli:2.0
     steps:
-      - checkout
-      - run:
-          name: Configure AWS
-          command: |
-            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-      - run:
-          name: Deploy to ECS
-          command: |
-            # Force new deployment of the service
-            aws ecs update-service \
-              --cluster java-app-cluster \
-              --service java-app-service \
-              --force-new-deployment
-
-            echo "Waiting for service deployment to complete..."
-            aws ecs wait services-stable \
-              --cluster java-app-cluster \
-              --services java-app-service
-
-            # Get task status
-            TASK_ARN=$(aws ecs list-tasks \
-              --cluster java-app-cluster \
-              --service-name java-app-service \
-              --desired-status RUNNING \
-              --query 'taskArns[0]' \
-              --output text)
-
-            if [ "$TASK_ARN" != "None" ]; then
-              echo "Task is running. Details:"
-              aws ecs describe-tasks \
-                --cluster java-app-cluster \
-                --tasks $TASK_ARN
-            else
-              echo "No running tasks found. Checking stopped tasks..."
-              STOPPED_TASK=$(aws ecs list-tasks \
-                --cluster java-app-cluster \
-                --service-name java-app-service \
-                --desired-status STOPPED \
-                --query 'taskArns[0]' \
-                --output text)
-              
-              if [ "$STOPPED_TASK" != "None" ]; then
-                echo "Found stopped task. Details:"
-                aws ecs describe-tasks \
-                  --cluster java-app-cluster \
-                  --tasks $STOPPED_TASK
-                exit 1
-              fi
-            fi
+      - aws-ecs/deploy-service-update:
+          family: hello-world-app
+          cluster-name: hello-world-cluster
+          container-image-name-updates: container=hello-world-app,tag=${CIRCLE_SHA1}
 
 workflows:
-  version: 2
-  ci-cd:
+  build-and-deploy:
     jobs:
-      - build
-      - docker-push:
-          requires:
-            - build
+      - build-and-push
       - deploy:
           requires:
-            - docker-push
+            - build-and-push
+          filters:
+            branches:
+              only: main 
