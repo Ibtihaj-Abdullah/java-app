@@ -11,16 +11,17 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Required Packages (tar & Maven)
+          name: Install Required Packages (tar, gzip & Maven)
           command: |
             echo "Updating package lists..."
             apt-get update
-            echo "Installing tar..."
-            apt-get install -y tar
+            echo "Installing tar and gzip..."
+            apt-get install -y tar gzip
             echo "Installing Maven..."
             apt-get install -y maven
             echo "Verifying installations..."
             tar --version
+            gzip --version
             mvn -version
       - run:
           name: Verify Code Exists
@@ -40,11 +41,12 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Install tar
+          name: Install tar and gzip
           command: |
-            echo "Installing tar..."
-            yum install -y tar
+            echo "Installing tar and gzip..."
+            yum install -y tar gzip
             tar --version
+            gzip --version
       - attach_workspace:
           at: .
       - run:
