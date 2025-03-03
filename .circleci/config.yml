@@ -11,10 +11,17 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Required Packages (tar & Maven)  # ✅ Fix Missing tar
+          name: Install Required Packages (tar & Maven)  # ✅ Fix tar Missing
           command: |
-            apt-get update
-            apt-get install -y tar maven
+            echo "Checking for tar..."
+            if ! command -v tar &> /dev/null; then
+              echo "Installing tar..."
+              apt-get update && apt-get install -y tar || true
+            else
+              echo "tar is already installed."
+            fi
+            echo "Installing Maven..."
+            apt-get update && apt-get install -y maven || true
       - run:
           name: Verify Installed Dependencies
           command: |
