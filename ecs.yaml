@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Cluster and Service for Java Application'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: java-app
+    Description: Environment name for the ECS resources
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${EnvironmentName}-cluster
+      CapacityProviders:
+        - FARGATE
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-task
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: !Sub ${EnvironmentName}-container
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/java-ecs-ci-cd:latest
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${EnvironmentName}
+      RetentionInDays: 7
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-service
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - Fn::ImportValue: !Sub ${EnvironmentName}-public-subnet-1
+            - Fn::ImportValue: !Sub ${EnvironmentName}-public-subnet-2
+          SecurityGroups:
+            - Fn::ImportValue: !Sub ${EnvironmentName}-ecs-sg
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: '*'
+
+Outputs:
+  ClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${EnvironmentName}-cluster-name
+
+  ServiceName:
+    Description: ECS Service Name
+    Value: !Ref ECSService
+    Export:
+      Name: !Sub ${EnvironmentName}-service-name 

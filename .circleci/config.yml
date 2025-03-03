@@ -24,9 +24,6 @@ jobs:
             gzip --version
             mvn -version
       - run:
-          name: Verify Code Exists
-          command: ls -la
-      - run:
           name: Build with Maven
           command: mvn clean package
       - persist_to_workspace:
@@ -36,56 +33,37 @@ jobs:
 
   docker-push:
     docker:
-      - image: amazon/aws-cli
+      - image: cimg/aws:2024.01
     environment:
       AWS_DEFAULT_REGION: us-east-1
     steps:
       - checkout
       - setup_remote_docker
-      - run:
-          name: Install tar, gzip and Docker
-          command: |
-            echo "Installing tar and gzip..."
-            yum install -y tar gzip
-            echo "Installing Docker..."
-            yum install -y amazon-linux-extras
-            amazon-linux-extras install -y docker
-            # Start Docker daemon directly
-            dockerd > /var/log/dockerd.log 2>&1 &
-            # Wait for Docker to be ready
-            sleep 10
-            echo "Verifying installations..."
-            tar --version
-            gzip --version
-            docker --version
-            docker info
       - attach_workspace:
           at: .
       - run:
           name: Configure AWS
           command: |
-            # Configure AWS credentials
             aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
             aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-            # Verify AWS configuration
-            aws configure list
-            # Test AWS credentials
-            aws sts get-caller-identity
       - run:
           name: Build and Push Docker Image
           command: |
             # Get AWS account ID
             AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            
+            # Login to ECR
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            
             # Build and tag the image
             docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
-            # Login to ECR
-            aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            
             # Push the image
             docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
 
   deploy:
     docker:
-      - image: amazon/aws-cli
+      - image: cimg/aws:2024.01
     environment:
       AWS_DEFAULT_REGION: us-east-1
     steps:
@@ -93,134 +71,52 @@ jobs:
       - run:
           name: Configure AWS
           command: |
-            # Configure AWS credentials
             aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
             aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-            # Verify AWS configuration
-            aws configure list
-            # Test AWS credentials
-            aws sts get-caller-identity
-      - run:
-          name: Verify Network Configuration
-          command: |
-            # Get task definition details
-            TASK_DEF=$(aws ecs describe-task-definition \
-              --task-definition java-app \
-              --query 'taskDefinition.taskDefinitionArn' \
-              --output text)
-            echo "Task Definition: $TASK_DEF"
-
-            # Get VPC configuration
-            SERVICE_DETAILS=$(aws ecs describe-services \
-              --cluster java-cluster \
-              --services java-service)
-            
-            NETWORK_CONFIG=$(echo "$SERVICE_DETAILS" | jq -r '.services[0].networkConfiguration')
-            echo "Network Configuration:"
-            echo "$NETWORK_CONFIG"
-
-            # Check subnets
-            SUBNETS=$(echo "$NETWORK_CONFIG" | jq -r '.awsvpcConfiguration.subnets[]')
-            for SUBNET in $SUBNETS; do
-              echo "Checking subnet: $SUBNET"
-              SUBNET_INFO=$(aws ec2 describe-subnets --subnet-ids $SUBNET)
-              echo "$SUBNET_INFO" | jq '.Subnets[0] | {SubnetId, VpcId, AvailabilityZone, MapPublicIpOnLaunch, RouteTableId}'
-              
-              # Check route table
-              ROUTE_TABLE=$(aws ec2 describe-route-tables \
-                --filters "Name=association.subnet-id,Values=$SUBNET")
-              echo "Route Table:"
-              echo "$ROUTE_TABLE" | jq '.RouteTables[0].Routes'
-            done
-
-            # Check security groups
-            SECURITY_GROUPS=$(echo "$NETWORK_CONFIG" | jq -r '.awsvpcConfiguration.securityGroups[]')
-            for SG in $SECURITY_GROUPS; do
-              echo "Checking security group: $SG"
-              SG_INFO=$(aws ec2 describe-security-groups --group-ids $SG)
-              echo "$SG_INFO" | jq '.SecurityGroups[0]'
-            done
       - run:
           name: Deploy to ECS
-          no_output_timeout: 30m
           command: |
-            # Update the service with explicit network configuration
+            # Force new deployment of the service
             aws ecs update-service \
-              --cluster java-cluster \
-              --service java-service \
-              --force-new-deployment \
-              --enable-execute-command
+              --cluster java-app-cluster \
+              --service java-app-service \
+              --force-new-deployment
 
-            # Function to check task status
-            check_task_status() {
-              # Get the latest task ARN
-              TASK_ARN=$(aws ecs list-tasks \
-                --cluster java-cluster \
-                --service-name java-service \
-                --desired-status RUNNING \
+            echo "Waiting for service deployment to complete..."
+            aws ecs wait services-stable \
+              --cluster java-app-cluster \
+              --services java-app-service
+
+            # Get task status
+            TASK_ARN=$(aws ecs list-tasks \
+              --cluster java-app-cluster \
+              --service-name java-app-service \
+              --desired-status RUNNING \
+              --query 'taskArns[0]' \
+              --output text)
+
+            if [ "$TASK_ARN" != "None" ]; then
+              echo "Task is running. Details:"
+              aws ecs describe-tasks \
+                --cluster java-app-cluster \
+                --tasks $TASK_ARN
+            else
+              echo "No running tasks found. Checking stopped tasks..."
+              STOPPED_TASK=$(aws ecs list-tasks \
+                --cluster java-app-cluster \
+                --service-name java-app-service \
+                --desired-status STOPPED \
                 --query 'taskArns[0]' \
                 --output text)
-
-              if [ "$TASK_ARN" != "None" ]; then
-                echo "Checking task status for $TASK_ARN"
-                # Get detailed task information including stopped reason if any
+              
+              if [ "$STOPPED_TASK" != "None" ]; then
+                echo "Found stopped task. Details:"
                 aws ecs describe-tasks \
-                  --cluster java-cluster \
-                  --tasks $TASK_ARN
-              else
-                echo "No running tasks found. Checking for stopped tasks..."
-                # Check recently stopped tasks
-                STOPPED_TASK=$(aws ecs list-tasks \
-                  --cluster java-cluster \
-                  --service-name java-service \
-                  --desired-status STOPPED \
-                  --query 'taskArns[0]' \
-                  --output text)
-                
-                if [ "$STOPPED_TASK" != "None" ]; then
-                  aws ecs describe-tasks \
-                    --cluster java-cluster \
-                    --tasks $STOPPED_TASK
-                fi
+                  --cluster java-app-cluster \
+                  --tasks $STOPPED_TASK
+                exit 1
               fi
-            }
-
-            # Wait for service to be stable
-            echo "Waiting for service deployment to complete..."
-            for i in {1..30}; do
-              echo "Checking deployment status (Attempt $i)..."
-              
-              # Check current service status
-              SERVICE_STATUS=$(aws ecs describe-services \
-                --cluster java-cluster \
-                --services java-service)
-              
-              echo "Current service status:"
-              echo "$SERVICE_STATUS"
-              
-              # Check task status
-              check_task_status
-              
-              # Check if service is stable
-              DEPLOYMENTS_COUNT=$(echo "$SERVICE_STATUS" | jq '.services[0].deployments | length')
-              if [ "$DEPLOYMENTS_COUNT" == "1" ]; then
-                DEPLOYMENT_STATUS=$(echo "$SERVICE_STATUS" | jq -r '.services[0].deployments[0].status')
-                if [ "$DEPLOYMENT_STATUS" == "PRIMARY" ]; then
-                  RUNNING_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.services[0].runningCount')
-                  DESIRED_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.services[0].desiredCount')
-                  if [ "$RUNNING_COUNT" == "$DESIRED_COUNT" ]; then
-                    echo "Deployment completed successfully!"
-                    exit 0
-                  fi
-                fi
-              fi
-              
-              echo "Waiting 30 seconds before next check..."
-              sleep 30
-            done
-
-            echo "Deployment timed out or failed"
-            exit 1
+            fi
 
 workflows:
   version: 2
