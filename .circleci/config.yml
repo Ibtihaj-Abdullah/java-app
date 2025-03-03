@@ -11,11 +11,11 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install tar
-          command: | 
+          name: Install tar (If Missing)
+          command: |
             if ! command -v tar &> /dev/null; then
               echo "Installing tar..."
-              apt-get update && sudo apt-get install -y tar
+              apt-get update && apt-get install -y tar
             else
               echo "tar is already installed."
             fi
@@ -24,8 +24,7 @@ jobs:
           command: ls -la
       - run:
           name: Build with Maven
-          command: |
-            mvn -f pom.xml clean package
+          command: mvn clean package
       - persist_to_workspace:
           root: .
           paths:
