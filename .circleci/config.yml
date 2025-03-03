@@ -102,8 +102,30 @@ jobs:
             aws sts get-caller-identity
       - run:
           name: Deploy to ECS
+          no_output_timeout: 30m
           command: |
+            # Update the service
             aws ecs update-service --cluster java-cluster --service java-service --force-new-deployment
+
+            # Wait for service to be stable
+            echo "Waiting for service deployment to complete..."
+            aws ecs wait services-stable \
+              --cluster java-cluster \
+              --services java-service
+
+            # Verify deployment status
+            DEPLOYMENT_STATUS=$(aws ecs describe-services \
+              --cluster java-cluster \
+              --services java-service \
+              --query 'services[0].deployments[0].status' \
+              --output text)
+
+            if [ "$DEPLOYMENT_STATUS" != "PRIMARY" ]; then
+              echo "Deployment failed with status: $DEPLOYMENT_STATUS"
+              exit 1
+            fi
+
+            echo "Deployment completed successfully!"
 
 workflows:
   version: 2
