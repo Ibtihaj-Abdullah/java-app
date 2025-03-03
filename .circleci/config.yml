@@ -68,9 +68,14 @@ jobs:
       - run:
           name: Build and Push Docker Image
           command: |
-            docker build -t $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
-            docker push $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
+            # Get AWS account ID
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            # Build and tag the image
+            docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
+            # Login to ECR
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            # Push the image
+            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
 
   deploy:
     docker:
