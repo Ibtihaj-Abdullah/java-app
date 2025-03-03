@@ -107,25 +107,76 @@ jobs:
             # Update the service
             aws ecs update-service --cluster java-cluster --service java-service --force-new-deployment
 
+            # Function to check task status
+            check_task_status() {
+              # Get the latest task ARN
+              TASK_ARN=$(aws ecs list-tasks \
+                --cluster java-cluster \
+                --service-name java-service \
+                --desired-status RUNNING \
+                --query 'taskArns[0]' \
+                --output text)
+
+              if [ "$TASK_ARN" != "None" ]; then
+                echo "Checking task status for $TASK_ARN"
+                # Get detailed task information including stopped reason if any
+                aws ecs describe-tasks \
+                  --cluster java-cluster \
+                  --tasks $TASK_ARN
+              else
+                echo "No running tasks found. Checking for stopped tasks..."
+                # Check recently stopped tasks
+                STOPPED_TASK=$(aws ecs list-tasks \
+                  --cluster java-cluster \
+                  --service-name java-service \
+                  --desired-status STOPPED \
+                  --query 'taskArns[0]' \
+                  --output text)
+                
+                if [ "$STOPPED_TASK" != "None" ]; then
+                  aws ecs describe-tasks \
+                    --cluster java-cluster \
+                    --tasks $STOPPED_TASK
+                fi
+              fi
+            }
+
             # Wait for service to be stable
             echo "Waiting for service deployment to complete..."
-            aws ecs wait services-stable \
-              --cluster java-cluster \
-              --services java-service
+            for i in {1..30}; do
+              echo "Checking deployment status (Attempt $i)..."
+              
+              # Check current service status
+              SERVICE_STATUS=$(aws ecs describe-services \
+                --cluster java-cluster \
+                --services java-service)
+              
+              echo "Current service status:"
+              echo "$SERVICE_STATUS"
+              
+              # Check task status
+              check_task_status
+              
+              # Check if service is stable
+              DEPLOYMENTS_COUNT=$(echo "$SERVICE_STATUS" | jq '.services[0].deployments | length')
+              if [ "$DEPLOYMENTS_COUNT" == "1" ]; then
+                DEPLOYMENT_STATUS=$(echo "$SERVICE_STATUS" | jq -r '.services[0].deployments[0].status')
+                if [ "$DEPLOYMENT_STATUS" == "PRIMARY" ]; then
+                  RUNNING_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.services[0].runningCount')
+                  DESIRED_COUNT=$(echo "$SERVICE_STATUS" | jq -r '.services[0].desiredCount')
+                  if [ "$RUNNING_COUNT" == "$DESIRED_COUNT" ]; then
+                    echo "Deployment completed successfully!"
+                    exit 0
+                  fi
+                fi
+              fi
+              
+              echo "Waiting 30 seconds before next check..."
+              sleep 30
+            done
 
-            # Verify deployment status
-            DEPLOYMENT_STATUS=$(aws ecs describe-services \
-              --cluster java-cluster \
-              --services java-service \
-              --query 'services[0].deployments[0].status' \
-              --output text)
-
-            if [ "$DEPLOYMENT_STATUS" != "PRIMARY" ]; then
-              echo "Deployment failed with status: $DEPLOYMENT_STATUS"
-              exit 1
-            fi
-
-            echo "Deployment completed successfully!"
+            echo "Deployment timed out or failed"
+            exit 1
 
 workflows:
   version: 2
