@@ -86,8 +86,20 @@ jobs:
   deploy:
     docker:
       - image: amazon/aws-cli
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
     steps:
       - checkout
+      - run:
+          name: Configure AWS
+          command: |
+            # Configure AWS credentials
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            # Verify AWS configuration
+            aws configure list
+            # Test AWS credentials
+            aws sts get-caller-identity
       - run:
           name: Deploy to ECS
           command: |
