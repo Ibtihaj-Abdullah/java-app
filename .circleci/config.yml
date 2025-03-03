@@ -3,7 +3,7 @@ version: 2.1
 executors:
   java-executor:
     docker:
-      - image: cimg/openjdk:17.0
+      - image: adoptopenjdk:17-jdk-hotspot  # ✅ Includes `tar` by default
 
 jobs:
   build:
