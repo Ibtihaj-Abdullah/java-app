@@ -16,6 +16,7 @@ jobs:
       - run:
           name: Build with Maven
           command: |
+            cd java-app
             mvn -f pom.xml clean package
       - persist_to_workspace:
           root: .
