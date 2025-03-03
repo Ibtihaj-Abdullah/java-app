@@ -60,11 +60,16 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Authenticate to AWS
+          name: Configure AWS
           command: |
+            # Configure AWS credentials and region
             aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
             aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
             aws configure set default.region us-east-1
+            # Verify AWS configuration
+            aws configure list
+            # Test AWS credentials
+            aws sts get-caller-identity
       - run:
           name: Build and Push Docker Image
           command: |
