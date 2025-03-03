@@ -36,7 +36,7 @@ jobs:
             aws configure set aws_access_key_id $AKIAQMEY5W4VYYUWB4N7
             aws configure set aws_secret_access_key 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
             aws configure set default.region us-east-1
-            - run:
+      - run:
           name: Build and Push Docker Image
           command: |
             docker build -t $AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
