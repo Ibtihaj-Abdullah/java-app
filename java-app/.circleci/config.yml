@@ -1,0 +1,60 @@
+version: 2.1
+
+executors:
+  java-executor:
+    docker:
+      - image: circleci/openjdk:17
+
+jobs:
+  build:
+    executor: java-executor
+    steps:
+      - checkout
+      - run: mvn clean package
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/demo-0.0.1-SNAPSHOT.jar
+
+  docker-push:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - setup_remote_docker
+      - attach_workspace:
+          at: .
+      - run:
+          name: Authenticate to AWS
+          command: |
+            aws configure set aws_access_key_id $AKIAQMEY5W4VYYUWB4N7
+            aws configure set aws_secret_access_key 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
+            aws configure set default.region us-east-1
+      - run:
+          name: Build and Push Docker Image
+          command: |
+            docker build -t $026090518315.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $026090518315.dkr.ecr.us-east-1.amazonaws.com
+            docker push $026090518315.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
+
+  deploy:
+    docker:
+      - image: amazon/aws-cli
+    steps:
+      - checkout
+      - run:
+          name: Deploy to ECS
+          command: |
+            aws ecs update-service --cluster java-cluster --service java-service --force-new-deployment
+
+workflows:
+  version: 2
+  ci-cd:
+    jobs:
+      - build
+      - docker-push:
+          requires:
+            - build
+      - deploy:
+          requires:
+            - docker-push
