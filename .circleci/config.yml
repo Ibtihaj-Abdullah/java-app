@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   aws-ecr: circleci/aws-ecr@6.15
-  aws-ecs: circleci/aws-ecs@2.2.0
+  aws-cli: circleci/aws-cli@3.1
 
 jobs:
   build-and-push:
@@ -10,6 +10,7 @@ jobs:
       - image: cimg/openjdk:11.0
     steps:
       - checkout
+      - setup_remote_docker
       - run:
           name: Build with Maven
           command: mvn clean package -DskipTests
@@ -21,20 +22,45 @@ jobs:
 
   deploy:
     docker:
-      - image: cimg/aws-cli:2.0
+      - image: cimg/python:3.9
     steps:
-      - aws-ecs/deploy-service-update:
-          family: hello-world-app
-          cluster-name: hello-world-cluster
-          container-image-name-updates: container=hello-world-app,tag=${CIRCLE_SHA1}
+      - checkout  # Need this to get task-definition.json
+      - aws-cli/setup
+      - run:
+          name: Update ECS service
+          command: |
+            # Get the current task definition
+            TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition hello-world-app --region us-east-1)
+            
+            # Update the image in task definition
+            NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "026090518315.dkr.ecr.us-east-1.amazonaws.com/hello-world-app:${CIRCLE_SHA1}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)')
+            
+            # Register new task definition
+            NEW_TASK_DEFINITION_ARN=$(aws ecs register-task-definition --region us-east-1 --cli-input-json "$NEW_TASK_DEFINITION" | jq -r '.taskDefinition.taskDefinitionArn')
+            
+            # Update service with new task definition
+            aws ecs update-service \
+              --cluster hello-world-cluster \
+              --service hello-world-app \
+              --task-definition ${NEW_TASK_DEFINITION_ARN} \
+              --force-new-deployment \
+              --region us-east-1
+
+            # Wait for deployment to complete
+            aws ecs wait services-stable \
+              --cluster hello-world-cluster \
+              --services hello-world-app \
+              --region us-east-1
 
 workflows:
   build-and-deploy:
     jobs:
-      - build-and-push
+      - build-and-push:
+          context: aws-credentials
       - deploy:
           requires:
             - build-and-push
+          context: aws-credentials
           filters:
             branches:
               only: main 
