@@ -37,6 +37,8 @@ jobs:
   docker-push:
     docker:
       - image: amazon/aws-cli
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
     steps:
       - checkout
       - setup_remote_docker
@@ -62,10 +64,9 @@ jobs:
       - run:
           name: Configure AWS
           command: |
-            # Configure AWS credentials and region
+            # Configure AWS credentials
             aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
             aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-            aws configure set default.region us-east-1
             # Verify AWS configuration
             aws configure list
             # Test AWS credentials
@@ -78,7 +79,7 @@ jobs:
             # Build and tag the image
             docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest .
             # Login to ECR
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
             # Push the image
             docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/java-ecs-ci-cd:latest
 
