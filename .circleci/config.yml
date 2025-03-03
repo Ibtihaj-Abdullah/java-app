@@ -15,7 +15,7 @@ jobs:
           command: | 
             if ! command -v tar &> /dev/null; then
               echo "Installing tar..."
-              apk --no-cache add tar
+              sudo apt-get update && sudo apt-get install -y tar
             else
               echo "tar is already installed."
             fi
