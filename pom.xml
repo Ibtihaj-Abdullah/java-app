@@ -14,7 +14,7 @@
     </properties>
 
     <dependencies>
-        <!-- 🔹 Added Missing Version Number -->
+        <!-- Added Missing Version Number -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
