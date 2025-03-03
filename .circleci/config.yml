@@ -12,8 +12,8 @@ jobs:
       - checkout
       - run:
           name: Install tar
-          command: sudo apt-get update && sudo apt-get install -y tar
-      - run:
+          command: sudo apt-get update && sudo apt-get install -y tar || true
+      - run: 
           name: Verify Code Exists
           command: ls -la
       - run:
@@ -36,8 +36,8 @@ jobs:
       - run:
           name: Authenticate to AWS
           command: |
-            aws configure set aws_access_key_id $AKIAQMEY5W4VYYUWB4N7
-            aws configure set aws_secret_access_key $6R4xNadPpGRMdTbo7g0/ATB6BRS9L05GLzWTsAXf
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
             aws configure set default.region us-east-1
       - run:
           name: Build and Push Docker Image
