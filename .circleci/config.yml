@@ -41,12 +41,17 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Install tar and gzip
+          name: Install tar, gzip and Docker
           command: |
             echo "Installing tar and gzip..."
             yum install -y tar gzip
+            echo "Installing Docker..."
+            yum install -y docker
+            service docker start
+            echo "Verifying installations..."
             tar --version
             gzip --version
+            docker --version
       - attach_workspace:
           at: .
       - run:
