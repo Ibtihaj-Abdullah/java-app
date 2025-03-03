@@ -24,7 +24,7 @@
 
     <build>
         <plugins>
-            <!-- 🔹 Added Missing Version Number for Maven Plugin -->
+            <!-- Added Missing Version Number for Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
