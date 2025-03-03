@@ -3,7 +3,7 @@ version: 2.1
 executors:
   java-executor:
     docker:
-      - image: adoptopenjdk:17-jdk-hotspot  # ✅ Includes `tar` by default
+      - image: eclipse-temurin:17-jdk
 
 jobs:
   build:
