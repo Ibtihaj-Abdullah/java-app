@@ -7,20 +7,20 @@ executors:
 
 jobs:
     build:
-    executor: java-executor
-    steps:
-      - checkout
-      - run:
-          name: Verify Code Exists
-          command: ls -la
-      - run:
-          name: Build with Maven
-          command: |
-            mvn -f pom.xml clean package
-      - persist_to_workspace:
-          root: .
-          paths:
-            - target/demo-0.0.1-SNAPSHOT.jar
+      executor: java-executor
+      steps:
+        - checkout
+        - run:
+            name: Verify Code Exists
+            command: ls -la
+        - run:
+            name: Build with Maven
+            command: |
+              mvn -f pom.xml clean package
+        - persist_to_workspace:
+            root: .
+            paths:
+              - target/demo-0.0.1-SNAPSHOT.jar
 
   docker-push:
     docker:
