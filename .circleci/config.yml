@@ -48,11 +48,15 @@ jobs:
             echo "Installing Docker..."
             yum install -y amazon-linux-extras
             amazon-linux-extras install -y docker
-            systemctl start docker
+            # Start Docker daemon directly
+            dockerd > /var/log/dockerd.log 2>&1 &
+            # Wait for Docker to be ready
+            sleep 10
             echo "Verifying installations..."
             tar --version
             gzip --version
             docker --version
+            docker info
       - attach_workspace:
           at: .
       - run:
