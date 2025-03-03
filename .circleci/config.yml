@@ -101,11 +101,55 @@ jobs:
             # Test AWS credentials
             aws sts get-caller-identity
       - run:
+          name: Verify Network Configuration
+          command: |
+            # Get task definition details
+            TASK_DEF=$(aws ecs describe-task-definition \
+              --task-definition java-app \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text)
+            echo "Task Definition: $TASK_DEF"
+
+            # Get VPC configuration
+            SERVICE_DETAILS=$(aws ecs describe-services \
+              --cluster java-cluster \
+              --services java-service)
+            
+            NETWORK_CONFIG=$(echo "$SERVICE_DETAILS" | jq -r '.services[0].networkConfiguration')
+            echo "Network Configuration:"
+            echo "$NETWORK_CONFIG"
+
+            # Check subnets
+            SUBNETS=$(echo "$NETWORK_CONFIG" | jq -r '.awsvpcConfiguration.subnets[]')
+            for SUBNET in $SUBNETS; do
+              echo "Checking subnet: $SUBNET"
+              SUBNET_INFO=$(aws ec2 describe-subnets --subnet-ids $SUBNET)
+              echo "$SUBNET_INFO" | jq '.Subnets[0] | {SubnetId, VpcId, AvailabilityZone, MapPublicIpOnLaunch, RouteTableId}'
+              
+              # Check route table
+              ROUTE_TABLE=$(aws ec2 describe-route-tables \
+                --filters "Name=association.subnet-id,Values=$SUBNET")
+              echo "Route Table:"
+              echo "$ROUTE_TABLE" | jq '.RouteTables[0].Routes'
+            done
+
+            # Check security groups
+            SECURITY_GROUPS=$(echo "$NETWORK_CONFIG" | jq -r '.awsvpcConfiguration.securityGroups[]')
+            for SG in $SECURITY_GROUPS; do
+              echo "Checking security group: $SG"
+              SG_INFO=$(aws ec2 describe-security-groups --group-ids $SG)
+              echo "$SG_INFO" | jq '.SecurityGroups[0]'
+            done
+      - run:
           name: Deploy to ECS
           no_output_timeout: 30m
           command: |
-            # Update the service
-            aws ecs update-service --cluster java-cluster --service java-service --force-new-deployment
+            # Update the service with explicit network configuration
+            aws ecs update-service \
+              --cluster java-cluster \
+              --service java-service \
+              --force-new-deployment \
+              --enable-execute-command
 
             # Function to check task status
             check_task_status() {
