@@ -47,6 +47,10 @@ jobs:
             yum install -y tar gzip
             echo "Installing Docker..."
             yum install -y docker
+            yum install -y amazon-linux-extras
+            amazon-linux-extras enable docker
+            yum clean metadata
+            yum install -y docker
             service docker start
             echo "Verifying installations..."
             tar --version
