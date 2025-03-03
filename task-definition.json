@@ -1,0 +1,20 @@
+{
+    "family": "hello-world-app",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "containerDefinitions": [
+        {
+            "name": "hello-world-app",
+            "image": "026090518315.dkr.ecr.us-east-1.amazonaws.com/hello-world-app:latest",
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true
+        }
+    ]
+} 
