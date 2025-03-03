@@ -6,11 +6,17 @@ executors:
       - image: cimg/openjdk:17.0
 
 jobs:
-  build:
+    build:
     executor: java-executor
     steps:
       - checkout
-      - run: mvn clean package
+      - run:
+          name: Verify Code Exists
+          command: ls -la
+      - run:
+          name: Build with Maven
+          command: |
+            mvn -f pom.xml clean package
       - persist_to_workspace:
           root: .
           paths:
