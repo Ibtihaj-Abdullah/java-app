@@ -11,6 +11,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install tar
+          command: sudo apt-get update && sudo apt-get install -y tar
+      - run:
           name: Verify Code Exists
           command: ls -la
       - run:
