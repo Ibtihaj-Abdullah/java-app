@@ -3,7 +3,7 @@ version: 2.1
 executors:
   java-executor:
     docker:
-      - image: cimg/openjdk:17.0
+      - image: circleci/openjdk:17.0
 
 jobs:
   build:
@@ -15,7 +15,7 @@ jobs:
           command: | 
             if ! command -v tar &> /dev/null; then
               echo "Installing tar..."
-              apt-get update && sudo apt-get install -y tar
+              sudo apt-get update && sudo apt-get install -y tar
             else
               echo "tar is already installed."
             fi
