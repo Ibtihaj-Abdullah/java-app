@@ -6,21 +6,21 @@ executors:
       - image: cimg/openjdk:17.0
 
 jobs:
-    build:
-      executor: java-executor
-      steps:
-        - checkout
-        - run:
-            name: Verify Code Exists
-            command: ls -la
-        - run:
-            name: Build with Maven
-            command: |
-              mvn -f pom.xml clean package
-        - persist_to_workspace:
-            root: .
-            paths:
-              - target/demo-0.0.1-SNAPSHOT.jar
+  build:
+    executor: java-executor
+    steps:
+      - checkout
+      - run:
+          name: Verify Code Exists
+          command: ls -la
+      - run:
+          name: Build with Maven
+          command: |
+            mvn -f pom.xml clean package
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/demo-0.0.1-SNAPSHOT.jar
 
   docker-push:
     docker:
@@ -34,7 +34,7 @@ jobs:
           name: Authenticate to AWS
           command: |
             aws configure set aws_access_key_id $AKIAQMEY5W4VYYUWB4N7
-            aws configure set aws_secret_access_key 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
+            aws configure set aws_secret_access_key $6R4xNadPpGRMdTbo7g0/ATB6BRS9L05GLzWTsAXf
             aws configure set default.region us-east-1
       - run:
           name: Build and Push Docker Image
