@@ -12,7 +12,13 @@ jobs:
       - checkout
       - run:
           name: Install tar
-          command: sudo apt-get update && sudo apt-get install -y tar || true
+          command: | 
+            if ! command -v tar &> /dev/null; then
+              echo "Installing tar..."
+              apk --no-cache add tar
+            else
+              echo "tar is already installed."
+            fi
       - run: 
           name: Verify Code Exists
           command: ls -la
