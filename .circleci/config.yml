@@ -3,7 +3,7 @@ version: 2.1
 executors:
   java-executor:
     docker:
-      - image: eclipse-temurin:17-jdk
+      - image: eclipse-temurin:17-jdk  # ✅ Official Java 17 Image
 
 jobs:
   build:
@@ -11,19 +11,16 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install tar (If Missing)
+          name: Install Required Packages (tar & Maven)  # ✅ Fix Missing tar
           command: |
-            if ! command -v tar &> /dev/null; then
-              echo "Installing tar..."
-              apt-get update && apt-get install -y tar
-            else
-              echo "tar is already installed."
-            fi
-      - run: 
-          name: Install Maven
+            apt-get update
+            apt-get install -y tar maven
+      - run:
+          name: Verify Installed Dependencies
           command: |
-            apt-get update && apt-get install -y maven
-      - run: 
+            tar --version
+            mvn -version
+      - run:
           name: Verify Code Exists
           command: ls -la
       - run:
