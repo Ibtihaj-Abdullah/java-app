@@ -44,9 +44,10 @@ jobs:
           command: |
             yum update -y
             yum install -y yum-utils
-            yum-config-manager --add-repo https://download.docker.com/linux/amazonlinux/docker-ce.repo
+            yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
             yum install -y docker-ce docker-ce-cli containerd.io
-            service docker start
+            systemctl start docker
+            systemctl enable docker
       - attach_workspace:
           at: .
       - run:
