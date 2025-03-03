@@ -3,7 +3,7 @@ version: 2.1
 executors:
   java-executor:
     docker:
-      - image: eclipse-temurin:17-jdk  # ✅ Official Java 17 Image
+      - image: eclipse-temurin:17-jdk  # Official Java 17 Image
 
 jobs:
   build:
@@ -39,6 +39,12 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
+      - run:
+          name: Install tar
+          command: |
+            echo "Installing tar..."
+            yum install -y tar
+            tar --version
       - attach_workspace:
           at: .
       - run:
