@@ -56,11 +56,11 @@ workflows:
   build-and-deploy:
     jobs:
       - build-and-push:
-          context: aws-credentials
+          context: #AWS CREDENTIALS
       - deploy:
           requires:
             - build-and-push
-          context: aws-credentials
+          context: #AWS CREDENTIALS
           filters:
             branches:
               only: main 
