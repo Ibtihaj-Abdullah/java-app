@@ -4,11 +4,11 @@
     "requiresCompatibilities": ["FARGATE"],
     "cpu": "256",
     "memory": "512",
-    "executionRoleArn": "arn:aws:iam::026090518315:role/ecsTaskExecutionRole",
+    "executionRoleArn": "arn:aws:iam::#IAM_NO:role/#ROLE_NAME",
     "containerDefinitions": [
         {
             "name": "hello-world-app",
-            "image": "026090518315.dkr.ecr.us-east-1.amazonaws.com/hello-world-app:latest",
+            "image": "#IMAGE/hello-world-app:latest",
             "portMappings": [
                 {
                     "containerPort": 8080,
